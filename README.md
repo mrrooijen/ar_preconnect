@@ -1,7 +1,8 @@
 ## ActiveRecord Preconnect
 
-This library adds the `preconnect!` method to `ActiveRecord::ConnectionAdapters::ConnectionPool`. Use this when you want all of your connections in your connection pool to eagerly connect to the database, rather than lazily.
+[![Gem Version](https://badge.fury.io/rb/ar_preconnect.svg)](https://badge.fury.io/rb/ar_preconnect)
 
+This library adds the `preconnect!` method to `ActiveRecord::ConnectionAdapters::ConnectionPool`. Use this when you want all of your connections in your connection pool to eagerly connect to the database, rather than lazily.
 
 ### Why
 
