@@ -29,86 +29,31 @@
 <h3>
 <a id="why" class="anchor" href="#why" aria-hidden="true"><span class="octicon octicon-link"></span></a>Why</h3>
 
-<p>When using <a href="http://www.postgresql.org">Postgres</a> on <a href="https://www.heroku.com">Heroku</a> with <a href="https://pgbouncer.github.io">PGBouncer</a> you can run into situations where your <a href="https://github.com/heroku/heroku-buildpack-pgbouncer/issues/29">process will hang indefinitely</a>. This issue occurs when using ActiveRecord, Sequel and potentially other database mappers.</p>
+<p>When using <a href="http://www.postgresql.org">Postgres</a> on <a href="https://www.heroku.com">Heroku</a> with <a href="https://pgbouncer.github.io">PGBouncer</a> you can run into situations where your <a href="https://github.com/heroku/heroku-buildpack-pgbouncer/issues/29">process will hang indefinitely</a>. This issue seems to occur when using ActiveRecord, Sequel and potentially other database mappers in a multi-threaded environment. </p>
 
-<p>The solution in Sequel is to set the <code>preconnect</code> option to <code>true</code>. This option tells Sequel to open all database connection eagerly, rather than lazily, and avoids potential deadlocks. I couldn't find an equivalent option in ActiveRecord so I wrote this small library to provide a method to do so.</p>
+<p>The solution in Sequel is to set the <code>preconnect</code> option to <code>true</code>. This option tells Sequel to open all database connection eagerly, rather than lazily, and avoids potential deadlocks. I couldn't find an equivalent option in ActiveRecord so I wrote this small library to provide a method, enabling you to achieve the same behavior.</p>
 
 <h3>
 <a id="installation" class="anchor" href="#installation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Installation</h3>
 
-<p>Add this line to your application's Gemfile:</p>
+<p>Add the library to your Gemfile:</p>
 
 <div class="highlight highlight-source-ruby"><pre><span class="pl-k">gem</span> <span class="pl-s"><span class="pl-pds">"</span>ar_preconnect<span class="pl-pds">"</span></span></pre></div>
 
 <h3>
 <a id="usage" class="anchor" href="#usage" aria-hidden="true"><span class="octicon octicon-link"></span></a>Usage</h3>
 
-<p>With <a href="http://sidekiq.org">Sidekiq</a>:</p>
+<p>Use the <code>preconnect!</code> method in any threaded environment. Here's a Sidekiq example:</p>
 
-<div class="highlight highlight-source-ruby"><pre><span class="pl-c"># ./config/initializers/sidekiq.rb</span>
-<span class="pl-c1">Sidekiq</span>.configure_server <span class="pl-k">do </span>|<span class="pl-smi">config</span>|
+<div class="highlight highlight-source-ruby"><pre><span class="pl-c1">Sidekiq</span>.configure_server <span class="pl-k">do </span>|<span class="pl-smi">config</span>|
   <span class="pl-c1">ActiveRecord</span>::<span class="pl-c1">Base</span>.connection.pool.preconnect!
 <span class="pl-k">end</span></pre></div>
 
-<p>With <a href="https://www.phusionpassenger.com">Passenger</a> in cluster-mode.</p>
+<p>Now, during the Sidekiq (server) configuration process, all of the connections in the ActiveRecord connection pool will establish a connection with the database, and will be ready before Sidekiq actually starts working.</p>
 
-<div class="highlight highlight-source-ruby"><pre><span class="pl-c"># ./config/initializers/passenger.rb</span>
-<span class="pl-k">if</span> <span class="pl-k">defined?</span>(<span class="pl-c1">PhusionPassenger</span>)
-  <span class="pl-c1">PhusionPassenger</span>.on_event(<span class="pl-c1">:starting_worker_process</span>) <span class="pl-k">do </span>|<span class="pl-smi">forked</span>|
-    <span class="pl-k">if</span> forked
-      <span class="pl-c1">ActiveRecord</span>::<span class="pl-c1">Base</span>.establish_connection
-      <span class="pl-c1">ActiveRecord</span>::<span class="pl-c1">Base</span>.connection.pool.preconnect!
-    <span class="pl-k">end</span>
-  <span class="pl-k">end</span>
-<span class="pl-k">end</span></pre></div>
+<p>You might also want to consider preconnecting with multi-threaded app servers such as <a href="https://www.phusionpassenger.com">Passenger</a> and <a href="http://puma.io">Puma</a>, or any other multi-threaded process.</p>
 
-<p>With <a href="http://unicorn.bogomips.org">Unicorn</a> in cluster-mode.</p>
-
-<div class="highlight highlight-source-ruby"><pre><span class="pl-c"># ./config/initializers/unicorn.rb</span>
-before_fork <span class="pl-k">do </span>|<span class="pl-smi">server</span>, <span class="pl-smi">worker</span>|
-  <span class="pl-c1">ActiveRecord</span>::<span class="pl-c1">Base</span>.connection.disconnect!
-<span class="pl-k">end</span>
-
-after_fork <span class="pl-k">do </span>|<span class="pl-smi">server</span>, <span class="pl-smi">worker</span>|
-  <span class="pl-c1">ActiveRecord</span>::<span class="pl-c1">Base</span>.establish_connection
-  <span class="pl-c1">ActiveRecord</span>::<span class="pl-c1">Base</span>.connection.pool.preconnect!
-<span class="pl-k">end</span></pre></div>
-
-<p>With <a href="http://puma.io">Puma</a> in cluster-mode.</p>
-
-<div class="highlight highlight-source-ruby"><pre><span class="pl-c"># ./config/initializers/puma.rb</span>
-on_worker_boot <span class="pl-k">do</span>
-  <span class="pl-c1">ActiveSupport</span>.on_load(<span class="pl-c1">:active_record</span>) <span class="pl-k">do</span>
-    <span class="pl-c1">ActiveRecord</span>::<span class="pl-c1">Base</span>.establish_connection
-    <span class="pl-c1">ActiveRecord</span>::<span class="pl-c1">Base</span>.connection.pool.preconnect!
-  <span class="pl-k">end</span>
-<span class="pl-k">end</span></pre></div>
-
-<p>With <a href="https://github.com/tomykaira/clockwork">Clockwork</a>:</p>
-
-<div class="highlight highlight-source-ruby"><pre><span class="pl-c"># ./clock.rb</span>
-<span class="pl-k">require</span> <span class="pl-s"><span class="pl-pds">"</span>clockwork<span class="pl-pds">"</span></span>
-<span class="pl-k">require_relative</span> <span class="pl-s"><span class="pl-pds">"</span>config/boot<span class="pl-pds">"</span></span>
-<span class="pl-k">require_relative</span> <span class="pl-s"><span class="pl-pds">"</span>config/environment<span class="pl-pds">"</span></span>
-
-<span class="pl-c1">ActiveRecord</span>::<span class="pl-c1">Base</span>.connection.pool.preconnect!
-
-<span class="pl-k">module</span> <span class="pl-en">Clockwork</span>
-  every(<span class="pl-c1">1</span>.minute, <span class="pl-s"><span class="pl-pds">"</span>do something<span class="pl-pds">"</span></span>) <span class="pl-k">do</span>
-    <span class="pl-c1">MyWorker</span>.perform_async
-  <span class="pl-k">end</span>
-<span class="pl-k">end</span></pre></div>
-
-<h3>
-<a id="verify" class="anchor" href="#verify" aria-hidden="true"><span class="octicon octicon-link"></span></a>Verify</h3>
-
-<p>Verify that this works:</p>
-
-<div class="highlight highlight-source-ruby"><pre>pool <span class="pl-k">=</span> <span class="pl-c1">ActiveRecord</span>::<span class="pl-c1">Base</span>.connection.pool
-
-puts <span class="pl-s"><span class="pl-pds">"</span><span class="pl-pse">#{</span><span class="pl-s1">pool.connections.count</span><span class="pl-pse"><span class="pl-s1">}</span></span> connections established.<span class="pl-pds">"</span></span>
-pool.preconnect!
-puts <span class="pl-s"><span class="pl-pds">"</span><span class="pl-pse">#{</span><span class="pl-s1">pool.connections.count</span><span class="pl-pse"><span class="pl-s1">}</span></span> connections established.<span class="pl-pds">"</span></span></pre></div>
+<p>Single-threaded app servers and worker libraries such as <a href="http://unicorn.bogomips.org">Unicorn</a> and <a href="https://github.com/collectiveidea/delayed_job/">Delayed Job</a> should use a connection pool of 1, won't need PGBouncer, and thus preconnection isn't necessary.</p>
 
 <h3>
 <a id="author--license" class="anchor" href="#author--license" aria-hidden="true"><span class="octicon octicon-link"></span></a>Author / License</h3>
