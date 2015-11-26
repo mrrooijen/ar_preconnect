@@ -6,98 +6,36 @@ This library adds the `preconnect!` method to `ActiveRecord::ConnectionAdapters:
 
 ### Why
 
-When using [Postgres] on [Heroku] with [PGBouncer] you can run into situations where your [process will hang indefinitely]. This issue occurs when using ActiveRecord, Sequel and potentially other database mappers.
+When using [Postgres] on [Heroku] with [PGBouncer] you can run into situations where your [process will hang indefinitely]. This issue seems to occur when using ActiveRecord, Sequel and potentially other database mappers in a multi-threaded environment. 
 
-The solution in Sequel is to set the `preconnect` option to `true`. This option tells Sequel to open all database connection eagerly, rather than lazily, and avoids potential deadlocks. I couldn't find an equivalent option in ActiveRecord so I wrote this small library to provide a method to do so.
+The solution in Sequel is to set the `preconnect` option to `true`. This option tells Sequel to open all database connection eagerly, rather than lazily, and avoids potential deadlocks. I couldn't find an equivalent option in ActiveRecord so I wrote this small library to provide a method, enabling you to achieve the same behavior.
 
 
 ### Installation
 
-Add this line to your application's Gemfile:
+Add the library to your Gemfile:
 
 ```rb
 gem "ar_preconnect"
 ```
 
+
 ### Usage
 
-With [Sidekiq]:
+Use the `preconnect!` method in any threaded environment. Here's a Sidekiq example:
+
 
 ```rb
-# ./config/initializers/sidekiq.rb
 Sidekiq.configure_server do |config|
   ActiveRecord::Base.connection.pool.preconnect!
 end
 ```
 
-With [Passenger] in cluster-mode.
+Now, during the Sidekiq (server) configuration process, all of the connections in the ActiveRecord connection pool will establish a connection with the database, and will be ready before Sidekiq actually starts working.
 
-```rb
-# ./config/initializers/passenger.rb
-if defined?(PhusionPassenger)
-  PhusionPassenger.on_event(:starting_worker_process) do |forked|
-    if forked
-      ActiveRecord::Base.establish_connection
-      ActiveRecord::Base.connection.pool.preconnect!
-    end
-  end
-end
-```
+You might also want to consider preconnecting with multi-threaded app servers such as [Passenger] and [Puma], or any other multi-threaded process.
 
-With [Unicorn] in cluster-mode.
-
-```rb
-# ./config/initializers/unicorn.rb
-before_fork do |server, worker|
-  ActiveRecord::Base.connection.disconnect!
-end
-
-after_fork do |server, worker|
-  ActiveRecord::Base.establish_connection
-  ActiveRecord::Base.connection.pool.preconnect!
-end
-```
-
-With [Puma] in cluster-mode.
-
-```rb
-# ./config/initializers/puma.rb
-on_worker_boot do
-  ActiveSupport.on_load(:active_record) do
-    ActiveRecord::Base.establish_connection
-    ActiveRecord::Base.connection.pool.preconnect!
-  end
-end
-```
-
-With [Clockwork]:
-
-```rb
-# ./clock.rb
-require "clockwork"
-require_relative "config/boot"
-require_relative "config/environment"
-
-ActiveRecord::Base.connection.pool.preconnect!
-
-module Clockwork
-  every(1.minute, "do something") do
-    MyWorker.perform_async
-  end
-end
-```
-
-### Verify 
-
-Verify that this works:
-
-```rb
-pool = ActiveRecord::Base.connection.pool
-
-puts "#{pool.connections.count} connections established."
-pool.preconnect!
-puts "#{pool.connections.count} connections established."
-```
+Single-threaded app servers and worker libraries such as [Unicorn] and [Delayed Job] should use a connection pool of 1, won't need PGBouncer, and thus preconnection isn't necessary.
 
 
 ### Author / License
@@ -111,7 +49,7 @@ Released under the [MIT License] by [Michael van Rooijen].
 [Passenger]: https://www.phusionpassenger.com
 [Unicorn]: http://unicorn.bogomips.org
 [Puma]: http://puma.io
-[Clockwork]: https://github.com/tomykaira/clockwork
+[Delayed Job]: https://github.com/collectiveidea/delayed_job/
 [process will hang indefinitely]: https://github.com/heroku/heroku-buildpack-pgbouncer/issues/29
 [MIT License]: https://github.com/meskyanichi/ar_preconnect/blob/master/LICENSE
 [Michael van Rooijen]: http://michael.vanrooijen.io
