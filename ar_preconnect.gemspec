@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
 
   spec.summary       = %q{Adds the `preconnect!` method to `ActiveRecord::ConnectionAdapters::ConnectionPool`.}
   spec.description   = spec.summary + " With it you can eagerly connect all connection pool connections to the database, rather than lazily."
-  spec.homepage      = "https://github.com/meskyanichi/ar_preconnect"
+  spec.homepage      = "https://github.com/mrrooijen/ar_preconnect"
 
   spec.files         = `git ls-files -z`.split("\x0").reject { |f| f.match(%r{^(test|spec|features)/}) }
   spec.require_paths = ["lib"]

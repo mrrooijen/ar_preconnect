@@ -51,5 +51,5 @@ Released under the [MIT License] by [Michael van Rooijen].
 [Puma]: http://puma.io
 [Delayed Job]: https://github.com/collectiveidea/delayed_job/
 [process will hang indefinitely]: https://github.com/heroku/heroku-buildpack-pgbouncer/issues/29
-[MIT License]: https://github.com/meskyanichi/ar_preconnect/blob/master/LICENSE
+[MIT License]: https://github.com/mrrooijen/ar_preconnect/blob/master/LICENSE
 [Michael van Rooijen]: http://michael.vanrooijen.io
